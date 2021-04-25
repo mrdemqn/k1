@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../fonts.dart';
+
+// Widget displaying a button for switching between graph
 class GraphButton extends StatelessWidget {
   final bool active;
   final String? text;
@@ -22,6 +25,7 @@ class GraphButton extends StatelessWidget {
         style: TextStyle(
           color: active ? Colors.white : Colors.black,
           fontSize: 11,
+          fontFamily: sfProTextMedium,
           fontWeight: FontWeight.w500
         ),),
       ),

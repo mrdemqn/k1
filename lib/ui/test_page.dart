@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+// Test page to display in BottomBar
 class TestPage extends StatelessWidget {
   final String text;
   const TestPage({required this.text}) : super();

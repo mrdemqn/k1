@@ -1,31 +1,47 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
+import 'package:k1/models/revenue.dart';
 import 'package:k1/ui/graph_button.dart';
+
+import '../fonts.dart';
+import '../graph_manager.dart';
 
 enum Button { H1, D1, W1, M1, M6, Y1 }
 
 class GraphForm extends StatefulWidget {
-  final AnimationController animationController;
-  final Animation animation;
+  final Size size;
+  final int index;
 
-  const GraphForm({Key? key, required this.animationController, required this.animation}) : super(key: key);
+  const GraphForm({Key? key, required this.size, required this.index}) : super(key: key);
 
   @override
   _GraphFormState createState() => _GraphFormState();
 }
 
 class _GraphFormState extends State<GraphForm> with TickerProviderStateMixin {
-  Button initialButton = Button.Y1;
+  Size get size => widget.size;
+  int get index => widget.index;
+  Button? currentButton = Button.Y1;
   StreamController<Button> buttonSC = StreamController();
   Stream<Button> get buttonStream => buttonSC.stream;
   late List<double> yPosit;
 
+  // Controllers for animating the graph
   late AnimationController _animationController;
   late Animation<double> _animation;
-  Size get size => MediaQuery.of(context).size;
 
+  GraphManager get graphManager => GraphManager();
+
+  // Variable to start animation if true
+  bool _animate = false;
+
+  // Variable to track the first animation run
+  bool _isStart = true;
+
+  // We track the end of the animation so that after
+  // the end of the first animation, we update its time
   void listener(AnimationStatus status) {
     if (status == AnimationStatus.dismissed ||
     status == AnimationStatus.completed) {
@@ -35,172 +51,172 @@ class _GraphFormState extends State<GraphForm> with TickerProviderStateMixin {
 
   @override
   void initState() {
+    _isStart
+    // If the widget is showing for the first time, then delay for each element
+    // (element number multiplied by 50 milliseconds) for the stair effect
+        ? Future.delayed(Duration(milliseconds: index * 50), () {
+      setState(() {
+        _animate = true;
+        _isStart = false;
+      });
+    }) : _animate = true;
     _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500));
-    _animation = Tween<double>(begin: 1, end: 280).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOutQuad));
+    _animation = Tween<double>(begin: 1, end: size.width * .8).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOutQuad));
     _animation.addStatusListener(listener);
     _animationController.forward();
-    yPosit = getRandom();
+    // Initial value of the data in the graph (default year)
+    yPosit = graphManager.currentRevenue.year;
     super.initState();
   }
 
   @override
   void dispose() {
-    _animationController.removeStatusListener(listener);
-    _animationController.dispose();
     buttonSC.close();
+    _animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.animationController,
-      builder: (context, child) {
-        return Transform(
-          transform: Matrix4.translationValues(0.0, widget.animation.value * size.height, 0.0),
-          child: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-            ),
-            child: StreamBuilder<Button>(
-                stream: buttonStream,
-                initialData: initialButton,
-                builder: (context, buttonAsync) {
-                  final Button? currentButton = buttonAsync.data;
+    return AnimatedOpacity(
+      opacity: _animate ? 1 : 0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOutQuart,
+      child: AnimatedPadding(
+        padding: _animate
+            ? EdgeInsets.zero
+            : const EdgeInsets.only(top: 100),
+        duration: const Duration(milliseconds: 400),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white,
+          ),
+          child: StreamBuilder<Button>(
+              stream: buttonStream,
+              initialData: currentButton,
+              builder: (context, buttonAsync) {
+                final Button? button = buttonAsync.data;
                 return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            AnimatedBuilder(
-                                  animation: _animationController,
-                                  builder: (BuildContext context, Widget? child) {
-                                    return Stack(
-                                      children: [
-                                        Container(
-                                            height: 350,
-                                            width: 280,
-                                            decoration: BoxDecoration(color: Colors.transparent),
-                                            child: CustomPaint(
-                                                painter: Graph(
-                                                    yPos: yPosit,
-                                                    paintingStyle: PaintingStyle.fill,
-                                                    colorPaint: Colors.grey[100]!,
-                                                    isBackground: true))),
-                                        Positioned(
-                                            left: 0,
-                                            right: 0,
-                                            top: 100,
-                                            child: divider()),
-                                        Positioned(
-                                            left: 0,
-                                            right: 0,
-                                            top: 180,
-                                            child: divider()),
-                                        Positioned(
-                                            left: 0,
-                                            right: 0,
-                                            top: 250,
-                                            child: divider()),
-                                        Positioned(
-                                            left: 0,
-                                            right: 0,
-                                            top: 330,
-                                            child: divider()),
-                                        Container(
-                                            height: 350,
-                                            width: _animation.value,
-                                            decoration: BoxDecoration(
-                                              color: Colors.transparent,
-                                            ),
-                                            child: CustomPaint(
-                                                painter: Graph(
-                                                    yPos: yPosit,
-                                                    paintingStyle: PaintingStyle.stroke,
-                                                    colorPaint: Colors.green,
-                                                    isBackground: false))),
-                                      ],
-                                    );
-                                  }),
-                            SizedBox(width: 5),
-                            columnPercents()
-                          ],
-                        ),
-                        SizedBox(height: 5),
-                        rowMonth(),
-                        SizedBox(height: 19),
-                        rowButtons(currentButton),
+                        AnimatedBuilder(
+                            animation: _animationController,
+                            builder: (BuildContext context, Widget? child) {
+                              return Stack(
+                                children: [
+                                  Container(
+                                      height: 350,
+                                      width: size.width * .8,
+                                      color: Colors.transparent),
+                                  Container(
+                                      height: 350,
+                                      width: _animation.value,
+                                      decoration: BoxDecoration(color: Colors.transparent),
+                                      child: CustomPaint(
+                                          painter: Graph(
+                                              yPos: yPosit,
+                                              paintingStyle: PaintingStyle.fill,
+                                              colorPaint: Colors.grey[100]!,
+                                              isBackground: true))),
+                                  Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: size.height * .37,
+                                      child: divider()),
+                                  Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: size.height * .28,
+                                      child: divider()),
+                                  Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: size.height * .19,
+                                      child: divider()),
+                                  Positioned(
+                                      left: 0,
+                                      right: 0,
+                                      bottom: size.height * .1,
+                                      child: divider()),
+                                  Container(
+                                      height: 350,
+                                      width: _animation.value,
+                                      decoration: BoxDecoration(
+                                        color: Colors.transparent,
+                                      ),
+                                      child: CustomPaint(
+                                          painter: Graph(
+                                              yPos: yPosit,
+                                              paintingStyle: PaintingStyle.stroke,
+                                              colorPaint: Colors.green,
+                                              isBackground: false))),
+                                ],
+                              );
+                            }),
+                        columnPercents(),
+                        SizedBox(width: 5),
                       ],
-                    );
-              }
-            ),
-              )
-
-              /*TweenAnimationBuilder(
-              tween: Tween<double>(begin: 0, end: 100),
-              duration: const Duration(milliseconds: 2000),
-              builder: (BuildContext context, double percentage, Widget? child) {
-                return CustomPaint(
-                  painter: LineChartPainterV2(percentage, data, "Top Three Formula One"),
-                  child: Container(width: double.infinity, height: 340),
+                    ),
+                    SizedBox(height: 5),
+                    rowMonth(),
+                    SizedBox(height: 19),
+                    rowButtons(button),
+                  ],
                 );
-              }),*/
-        );
-      }
+              }
+          ),
+        ),
+      ),
     );
   }
 
-  Widget rowButtons(Button? currentButton) {
+  // Widget displaying a row of buttons for switching between graph
+  Widget rowButtons(Button? button) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GraphButton(active: currentButton == Button.H1, text: '1H',
-            onTap: () {
-          buttonSC.sink.add(Button.H1);
-          yPosit = getRandom();
-          _animationController.reset();
-          _animationController.forward();
-        }),
-        GraphButton(active: currentButton == Button.D1, text: '1D',
-            onTap: () {
-            buttonSC.sink.add(Button.D1);
-            yPosit = getRandom();
-            _animationController.reset();
-            _animationController.forward();
-        }),
-        GraphButton(active: currentButton == Button.W1, text: '1W',
-            onTap: () {
-            buttonSC.sink.add(Button.W1);
-            yPosit = getRandom();
-            _animationController.reset();
-            _animationController.forward();
-        }),
-        GraphButton(active: currentButton == Button.M1, text: '1M',
-            onTap: () {
-            buttonSC.sink.add(Button.M1);
-            yPosit = getRandom();
-            _animationController.reset();
-            _animationController.forward();
-        }),
-        GraphButton(active: currentButton == Button.M6, text: '6M',
-            onTap: () {
-            buttonSC.sink.add(Button.M6);
-            yPosit = getRandom();
-            _animationController.reset();
-            _animationController.forward();
-        }),
-        GraphButton(active: currentButton == Button.Y1, text: '1Y',
-            onTap: () {
-            buttonSC.sink.add(Button.Y1);
-            yPosit = getRandom();
-            _animationController.reset();
-            _animationController.forward();
-        }),
+        GraphButton(active: button == Button.H1, text: '1H',
+            onTap: () => buttonTapped(Button.H1, graphManager.currentRevenue.hour)),
+
+        GraphButton(active: button == Button.D1, text: '1D',
+            onTap: () => buttonTapped(Button.D1, graphManager.currentRevenue.day)),
+
+        GraphButton(active: button == Button.W1, text: '1W',
+            onTap: () => buttonTapped(Button.W1, graphManager.currentRevenue.week)),
+
+        GraphButton(active: button == Button.M1, text: '1M',
+            onTap: () => buttonTapped(Button.M1, graphManager.currentRevenue.month)),
+
+        GraphButton(active: button == Button.M6, text: '6M',
+            onTap: () => buttonTapped(Button.M6, graphManager.currentRevenue.sixMonth)),
+
+        GraphButton(active: button == Button.Y1, text: '1Y',
+            onTap: () => buttonTapped(Button.Y1, graphManager.currentRevenue.year)),
       ],
     );
   }
 
+  // Handling a graph button click
+  void buttonTapped(Button? button, List<double> revenue) {
+    if (currentButton != button && button != null) {
+      // Save the currently pressed graph button
+      currentButton = button;
+      // Adding an event depending on the pressed button and rebuilding a row of graph buttons
+      buttonSC.sink.add(button);
+      // Change of data for the graph depending on the pressed button
+      yPosit = revenue;
+      // Reset animation for next playback from the beginning
+      _animationController.reset();
+      // Play graph animation
+      _animationController.forward();
+    }
+  }
+
+  // Widget displaying a row with months
   Widget rowMonth() {
     return Padding(
       padding: const EdgeInsets.only(right: 40),
@@ -222,11 +238,14 @@ class _GraphFormState extends State<GraphForm> with TickerProviderStateMixin {
     );
   }
 
+  // Widget displaying text element (month)
   Widget monthItem(String text) {
     return Text(text,
-        style: TextStyle(color: Color.fromRGBO(60, 60, 67, 170), fontSize: 9, fontWeight: FontWeight.w500));
+        style: TextStyle(color: Color.fromRGBO(60, 60, 67, 170), fontSize: 9,
+            fontFamily: sfProTextMedium, fontWeight: FontWeight.w500));
   }
 
+  // Widget displaying a column with graph percentages
   Widget columnPercents() {
     return Container(
       height: 350,
@@ -249,25 +268,18 @@ class _GraphFormState extends State<GraphForm> with TickerProviderStateMixin {
     );
   }
 
+  // Widget displaying text element (graph percentages)
   Widget percentItem(String text) {
     return Text(text,
-        style: TextStyle(color: Color.fromRGBO(60, 60, 67, 170), fontSize: 9, fontWeight: FontWeight.w600));
-  }
-
-  List<double> getRandom() {
-    List<double> list = [];
-    Random random = Random();
-    for (int i = 0; i < 40; i++) {
-      list.add(random.nextInt(100).toDouble());
-    }
-    return list;
+        style: TextStyle(color: Color.fromRGBO(60, 60, 67, 170), fontSize: 9,
+            fontFamily: sfProTextMedium, fontWeight: FontWeight.w600));
   }
 
   Widget divider() {
     return Align(
         alignment: Alignment.topCenter,
         child: Container(
-          width: 280,
+          width: size.width * .8,
           child: Divider(
             height: 0.33,
             thickness: 0.33,
@@ -278,6 +290,7 @@ class _GraphFormState extends State<GraphForm> with TickerProviderStateMixin {
   }
 }
 
+// The graph that was built on Canvas
 class Graph extends CustomPainter {
   final List<double> yPos;
   final PaintingStyle paintingStyle;
